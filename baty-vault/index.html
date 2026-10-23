@@ -1,0 +1,548 @@
+<title>Baty Vault</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a scoreboard band (dominance index + stat line) over a tabbed working area: checklist grouped by card, drops feed, add form. */
+:root {
+  --bg: #eef2f8;
+  --surface: #ffffff;
+  --sunk: #e4e9f2;
+  --ink: #0e1a33;
+  --muted: #56637d;
+  --line: #d5dce8;
+  --royal: #1b3c8f;
+  --royal-ink: #ffffff;
+  --orange: #d9520b;
+  --good: #187a4a;
+  --gold: #a87b06;
+  --board: #10204a;
+  --board-ink: #f2f5fb;
+  --board-muted: #a9b7d6;
+  --f-display: "Big Shoulders Display", "Oswald", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1020; --surface: #121a2e; --sunk: #0e1527; --ink: #e6ebf6; --muted: #94a1bd; --line: #24304b;
+    --royal: #7ea0ff; --royal-ink: #0a1020; --orange: #ff8140; --good: #4cc98a; --gold: #e3b53c;
+    --board: #0f1d44; --board-ink: #f2f5fb; --board-muted: #9fb0d6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1020; --surface: #121a2e; --sunk: #0e1527; --ink: #e6ebf6; --muted: #94a1bd; --line: #24304b;
+  --royal: #7ea0ff; --royal-ink: #0a1020; --orange: #ff8140; --good: #4cc98a; --gold: #e3b53c;
+  --board: #0f1d44; --board-ink: #f2f5fb; --board-muted: #9fb0d6; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--royal); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* Scoreboard */
+.board { background: var(--board); color: var(--board-ink); border-bottom: 4px solid var(--orange); }
+.board .wrap { padding-block: 20px 22px; display: grid; gap: 18px; }
+.masthead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.wordmark { font-family: var(--f-display); font-weight: 900; font-size: 34px; letter-spacing: 0.02em; line-height: 1; text-transform: uppercase; margin: 0; }
+.wordmark span { color: var(--orange); }
+.sub { color: var(--board-muted); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+.sync { font-size: 12px; color: var(--board-muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--board-muted); display: inline-block; }
+.sync[data-mode="cloud"] i { background: #4cc98a; }
+.sync[data-mode="local"] i { background: #e3b53c; }
+
+.score { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr); gap: 20px 28px; align-items: end; }
+@media (max-width: 720px) { .score { grid-template-columns: 1fr; } }
+.index-label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--board-muted); }
+.index-row { display: flex; align-items: baseline; gap: 10px; }
+.index-num { font-family: var(--f-display); font-weight: 900; font-size: 96px; line-height: 0.9; font-variant-numeric: tabular-nums; }
+.index-of { font-family: var(--f-display); font-weight: 600; font-size: 26px; color: var(--board-muted); }
+.tier { font-family: var(--f-display); font-weight: 800; font-size: 24px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--orange); margin-top: 4px; }
+.meter { position: relative; height: 10px; background: rgba(255,255,255,0.12); border-radius: 5px; margin-top: 12px; overflow: hidden; }
+.meter b { position: absolute; inset: 0 auto 0 0; background: var(--orange); border-radius: 5px; transition: width .5s ease; }
+.ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--board-muted); margin-top: 4px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: rgba(255,255,255,0.14); border-radius: var(--r); overflow: hidden; }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--board); padding: 12px 14px; min-width: 0; }
+.stat .k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--board-muted); }
+.stat .v { font-family: var(--f-display); font-weight: 800; font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .d { font-size: 12px; color: var(--board-muted); }
+.how { font-size: 12px; color: var(--board-muted); }
+.how summary { cursor: pointer; }
+.how p { margin: 6px 0 0; max-width: 70ch; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 18px; overflow-x: auto; }
+.tab { background: none; border: 0; padding: 10px 14px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--royal); }
+.badge { background: var(--orange); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; font-weight: 700; }
+main .wrap { padding-block: 0 48px; }
+.panel { padding-top: 16px; display: grid; gap: 14px; }
+
+/* Filters */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.search { flex: 1 1 220px; min-width: 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.chip { border: 1px solid var(--line); background: var(--surface); padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--royal); border-color: var(--royal); color: var(--royal-ink); }
+
+/* Card groups */
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.ghead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.gtitle { flex: 1 1 260px; min-width: 0; }
+.gyear { font-family: var(--f-display); font-weight: 800; font-size: 22px; line-height: 1; margin-right: 6px; }
+.gset { font-weight: 700; }
+.gno { color: var(--muted); font-size: 13px; }
+.tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; color: var(--orange); margin-left: 6px; vertical-align: 2px; }
+.rainbow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.rbar { display: flex; gap: 2px; }
+.rbar i { width: 10px; height: 10px; border-radius: 2px; background: var(--sunk); border: 1px solid var(--line); }
+.rbar i.on { background: var(--royal); border-color: var(--royal); }
+.hunt { font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.rows { display: grid; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row.owned { background: color-mix(in srgb, var(--royal) 7%, transparent); }
+.pname { min-width: 0; font-weight: 500; }
+.pname small { display: block; color: var(--muted); font-size: 12px; }
+.run { font-family: var(--f-mono); font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--sunk); color: var(--muted); white-space: nowrap; }
+.run.low { color: var(--orange); }
+.run.one { background: var(--gold); color: #1a1200; }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.step button { width: 32px; height: 32px; border: 0; background: var(--surface); cursor: pointer; font-size: 17px; font-weight: 700; color: var(--royal); }
+.step button:disabled { color: var(--line); cursor: default; }
+.step output { min-width: 28px; text-align: center; font-family: var(--f-mono); font-weight: 700; }
+.more { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; text-decoration: underline; padding: 0; justify-self: start; }
+.detail { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px 0 6px; }
+@media (max-width: 560px) { .detail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.detail label { display: grid; gap: 2px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); min-width: 0; }
+.detail input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 14px; text-transform: none; letter-spacing: 0; min-width: 0; width: 100%; }
+.legend { font-size: 12px; color: var(--muted); }
+
+/* Drops */
+.hunt-box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 10px; }
+.hunt-box h3, .add h3 { margin: 0; font-family: var(--f-display); font-weight: 800; font-size: 22px; text-transform: uppercase; letter-spacing: 0.02em; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; text-decoration: none; color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--royal); border-color: var(--royal); color: var(--royal-ink); }
+.drop { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 6px; }
+.drop.new { border-left-color: var(--orange); }
+.drop .top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.drop h4 { margin: 0; font-size: 16px; min-width: 0; flex: 1 1 240px; }
+.pill { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+.pill.new { background: var(--orange); color: #fff; }
+.pill.seen { background: var(--sunk); color: var(--muted); }
+.pill.added { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.drop p { margin: 0; color: var(--muted); font-size: 14px; }
+.drop .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); }
+
+/* Add form */
+.add { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; max-width: 640px; }
+.add .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 480px) { .add .grid { grid-template-columns: 1fr; } }
+.add label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.add input, .add select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 15px; font-weight: 400; color: var(--ink); width: 100%; min-width: 0; }
+.add .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; z-index: 20; }
+@media (prefers-reduced-motion: reduce) { .meter b { transition: none; } }
+</style>
+
+<header class="board">
+  <div class="wrap">
+    <div class="masthead">
+      <div>
+        <h1 class="wordmark">Baty <span>Vault</span></h1>
+        <div class="sub">Brett Baty card tracker · No. 22</div>
+      </div>
+      <div class="sync" id="sync" data-mode="loading"><i></i><span id="syncText">Connecting…</span></div>
+    </div>
+
+    <div class="score">
+      <div>
+        <div class="index-label">Baty Market Dominance Index</div>
+        <div class="index-row"><span class="index-num" id="idx">0</span><span class="index-of">/ 100</span></div>
+        <div class="tier" id="tier">Bench Player</div>
+        <div class="meter" aria-hidden="true"><b id="meter" style="width:0%"></b></div>
+        <div class="ticks" aria-hidden="true"><span>Bench</span><span>Starter</span><span>All-Star</span><span>Baron</span><span>Monopoly</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k">Checklist</div><div class="v mono" id="sComplete">0%</div><div class="d" id="sCompleteD">0 of 0 cards</div></div>
+        <div class="stat"><div class="k">Supply held</div><div class="v mono" id="sShare">0%</div><div class="d" id="sShareD">of numbered copies</div></div>
+        <div class="stat"><div class="k">Cards owned</div><div class="v mono" id="sOwned">0</div><div class="d" id="sOwnedD">0 one-of-ones</div></div>
+        <div class="stat"><div class="k">Est. value</div><div class="v mono" id="sValue">$0</div><div class="d" id="sValueD">$0 paid</div></div>
+      </div>
+    </div>
+    <details class="how">
+      <summary>How the index works</summary>
+      <p>Half the index is checklist completion: how many of the tracked Baty cards are in the vault. The other half is scarcity: every serial-numbered copy earns 100 ÷ its print run (a /50 is worth 2 points, a 1/1 is worth 100), unnumbered cards earn half a point, and autographs count double. Scarcity points level off as they pile up, so the last few points take real hunting. Supply held is the share of every numbered Baty copy on the checklist that sits in the vault.</p>
+    </details>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-checklist" aria-selected="true" data-view="checklist">Checklist</button>
+      <button class="tab" role="tab" id="tab-drops" aria-selected="false" data-view="drops">New drops <span class="badge" id="newCount" hidden>0</span></button>
+      <button class="tab" role="tab" id="tab-add" aria-selected="false" data-view="add">Add a card</button>
+    </div>
+
+    <section class="panel" id="view-checklist">
+      <div class="filters">
+        <input class="search" id="q" type="search" placeholder="Search set, number, parallel…" aria-label="Search cards">
+        <button class="chip" data-era="all" aria-pressed="true">All</button>
+        <button class="chip" data-era="prospect" aria-pressed="false">Prospect 2019–22</button>
+        <button class="chip" data-era="rookie" aria-pressed="false">Rookie 2023</button>
+        <button class="chip" data-era="recent" aria-pressed="false">2024 on</button>
+        <button class="chip" id="missingOnly" aria-pressed="false">Missing only</button>
+      </div>
+      <div id="groups"></div>
+      <p class="legend">Tap + to put a card in the vault. "Details" holds grade, price paid and value. A print run marked * follows the set's standard parallel numbering. Checklist compiled October 2026 from set checklists and sales listings; add anything missing on the Add a card tab.</p>
+    </section>
+
+    <section class="panel" id="view-drops" hidden>
+      <div class="hunt-box">
+        <h3>Hunt now</h3>
+        <div class="links">
+          <a class="btn primary" target="_blank" rel="noopener" href="https://www.ebay.com/sch/i.html?_nkw=brett+baty&_sacat=261328&_sop=10">Newest Baty listings on eBay</a>
+          <a class="btn" target="_blank" rel="noopener" href="https://www.ebay.com/sch/i.html?_nkw=brett+baty+%28%2F1%2C1%2F1%2C%2F5%2C%2F10%2C%2F25%2C%2F50%29&_sacat=261328&_sop=10">New numbered cards</a>
+          <a class="btn" target="_blank" rel="noopener" href="https://www.ebay.com/sch/i.html?_nkw=brett+baty+auto&_sacat=261328&_sop=10">New autographs</a>
+          <a class="btn" target="_blank" rel="noopener" href="https://www.ebay.com/sch/i.html?_nkw=brett+baty&_sacat=261328&LH_Sold=1&LH_Complete=1">Recent sold prices</a>
+        </div>
+        <p class="legend">Tip: on eBay, open "Newest Baty listings" and tap "Save this search" to get an email or phone alert the moment a new Baty card is listed.</p>
+      </div>
+      <div id="drops"></div>
+    </section>
+
+    <section class="panel" id="view-add" hidden>
+      <form class="add" id="addForm">
+        <h3>Add a card to the checklist</h3>
+        <div class="grid">
+          <label>Year<input id="fYear" type="number" min="2015" max="2040" required placeholder="2026"></label>
+          <label>Set<input id="fSet" required placeholder="Topps Heritage Chrome"></label>
+          <label>Card number<input id="fNo" placeholder="#347"></label>
+          <label>Parallel or version<input id="fName" required placeholder="Base, Gold Refractor…"></label>
+          <label>Print run (blank if not numbered)<input id="fRun" type="number" min="1" placeholder="50"></label>
+          <label>Type<select id="fKind"><option value="base">Base / parallel</option><option value="insert">Insert</option><option value="auto">Autograph</option><option value="relic">Relic / patch</option></select></label>
+        </div>
+        <label class="check"><input id="fRc" type="checkbox"> Rookie card (RC)</label>
+        <label class="check"><input id="fOwn" type="checkbox" checked> I already own one</label>
+        <div><button class="btn primary" type="submit">Add to checklist</button></div>
+      </form>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// Reference checklist of known Brett Baty cards. est: print run follows the set's standard numbering.
+const RAW = [
+  ['19bdc', 2019, 'Bowman Draft Chrome', 'BDC-39', 'base', '1st Bowman', [
+    ['base', 'Base'], ['ref', 'Refractor'], ['pur', 'Purple Refractor', 250, 1], ['blu', 'Blue Refractor', 150],
+    ['grn', 'Green Refractor', 99, 1], ['gld', 'Gold Refractor', 50, 1], ['org', 'Orange Refractor', 25, 1],
+    ['red', 'Red Refractor', 5, 1], ['sup', 'Superfractor', 1, 1]]],
+  ['19cda', 2019, 'Bowman Draft Chrome Draft Pick Autographs', 'CDA-BB', 'auto', '1st Bowman Auto', [
+    ['base', 'Autograph'], ['ref', 'Refractor', 499], ['gld', 'Gold Refractor', 50, 1], ['org', 'Orange Refractor', 25, 1],
+    ['red', 'Red Refractor', 5, 1], ['sup', 'Superfractor', 1, 1]]],
+  ['20bcp', 2020, 'Bowman Chrome Prospects', 'BCP-247', 'base', '', [
+    ['base', 'Base'], ['ref', 'Refractor'], ['gsh', 'Gold Shimmer Refractor', 50]]],
+  ['20bdc', 2020, 'Bowman Draft Chrome', 'BDC-184', 'base', '', [
+    ['base', 'Base'], ['ref', 'Refractor']]],
+  ['21bcp', 2021, 'Bowman Chrome Prospects', 'BCP-237', 'base', '', [
+    ['base', 'Base'], ['mojo', 'Mojo Refractor']]],
+  ['23t89', 2023, 'Topps Series 1', '#89', 'base', 'RC', [
+    ['base', 'Base'], ['rbf', 'Rainbow Foil'], ['gld', 'Gold', 2023, 1], ['org', 'Orange Foil', 299], ['red', 'Red Foil', 199],
+    ['vs', 'Vintage Stock', 99, 1], ['blk', 'Black', 72, 1], ['fd', "Father's Day Powder Blue", 50, 1],
+    ['md', "Mother's Day Hot Pink", 50, 1], ['clr', 'Clear', 10, 1], ['plat', 'Platinum', 1, 1]]],
+  ['23gh', 2023, "Topps Series 1 2022's Greatest Hits", '22GH-3', 'insert', 'RC', [
+    ['base', 'Base'], ['blk', 'Black', 299]]],
+  ['2388', 2023, 'Topps Series 1 1988 Topps Autographs', '88BA-BB', 'auto', 'RC', [
+    ['base', 'Autograph'], ['blk', 'Black', 199]]],
+  ['23tc', 2023, 'Topps Chrome', '#204', 'base', 'RC', [
+    ['base', 'Base'], ['ref', 'Refractor'], ['prz', 'Prism Refractor'], ['gld', 'Gold Refractor', 50, 1],
+    ['org', 'Orange Refractor', 25, 1], ['red', 'Red Refractor', 5, 1], ['sup', 'Superfractor', 1, 1]]],
+  ['23tcra', 2023, 'Topps Chrome Rookie Autographs', 'RA-BBA', 'auto', 'RC', [
+    ['base', 'Autograph'], ['gw', 'Gold Wave Refractor', 50]]],
+  ['23tcu', 2023, 'Topps Chrome Update Rookie Debut', 'USC10', 'insert', 'RC', [
+    ['base', 'Base'], ['pur', 'Purple Refractor', 250]]],
+  ['23bc', 2023, 'Bowman Chrome', '#15', 'base', 'RC', [
+    ['base', 'Base'], ['ref', 'Refractor']]],
+  ['23bcra', 2023, 'Bowman Chrome Rookie Autographs', 'CRA-BB', 'auto', 'RC', [
+    ['base', 'Autograph'], ['atom', 'Atomic Refractor', 100], ['grn', 'Green Refractor', 99], ['gld', 'Gold Refractor', 50],
+    ['org', 'Orange Refractor', 25, 1], ['red', 'Red Refractor', 5, 1], ['sup', 'Superfractor', 1, 1]]],
+  ['25prv', 2025, 'Bowman Paper Rookies & Veterans Autographs', 'PRV-BB', 'auto', '', [
+    ['base', 'Autograph'], ['pur', 'Purple', 250]]],
+  ['26t', 2026, 'Topps Series 1', '#347', 'base', '', [
+    ['base', 'Base'], ['gm', 'Golden Mirror Variation'], ['gld', 'Gold', 2026, 1]]],
+];
+const BASE_CARDS = RAW.flatMap(([g, year, set, no, kind, tag, vs]) => vs.map(([k, name, run, est]) => ({
+  id: g + '-' + k, g, year, set, no, kind, tag, name, run: run || null, est: !!est,
+})));
+
+const state = { owned: {}, custom: {}, drops: {}, mode: 'loading', readOnly: false, era: 'all', missing: false, q: '', open: new Set(), view: 'checklist' };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
+
+// ---------- storage: shared db when available, this device otherwise ----------
+let db = null;
+const LS_KEY = 'batyvault.v1';
+function loadLocal() {
+  try { const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); state.owned = s.owned || {}; state.custom = s.custom || {}; state.drops = s.drops || {}; } catch (e) {}
+}
+function saveLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ owned: state.owned, custom: state.custom, drops: state.drops })); } catch (e) {}
+}
+
+const timers = {}, chains = {};
+// Coalesce rapid edits to one doc, and keep writes to the same doc in order.
+function persist(col, id, body, delay = 350) {
+  const map = state[col === 'cards' ? 'custom' : col];
+  if (body) map[id] = body; else delete map[id];
+  render();
+  if (!db) { saveLocal(); return; }
+  clearTimeout(timers[col + id]);
+  timers[col + id] = setTimeout(() => {
+    const ref = db.collection(col).doc(id);
+    const latest = col === 'cards' ? state.custom[id] : state[col][id];
+    chains[col + id] = (chains[col + id] || Promise.resolve()).then(() => latest ? ref.set(latest) : ref.delete()).catch((e) => {
+      if (e && e.code === 'invalid_argument') { state.readOnly = true; toast('You can look but not change this vault. Ask for editor access.'); render(); }
+      else if (e && e.code === 'quota_exceeded') toast('The vault is full. Remove some drops to make room.');
+      else toast('That change did not save. Check your connection and try again.');
+    });
+  }, delay);
+}
+
+function subscribe() {
+  const bind = (col, key) => db.collection(col).onSnapshot((snap) => {
+    const m = {};
+    snap.docs.forEach((d) => { m[d.id] = { ...d.data() }; });
+    state[key] = m; render();
+  }, () => { setSync('local', 'Offline, showing last view'); });
+  bind('owned', 'owned'); bind('cards', 'custom'); bind('drops', 'drops');
+}
+
+function setSync(mode, text) { state.mode = mode; $('#sync').dataset.mode = mode; $('#syncText').textContent = text; }
+
+async function boot() {
+  loadLocal(); render();
+  try { db = window.claude ? await window.claude.use('db') : null; } catch (e) { db = null; }
+  if (db) {
+    setSync('cloud', 'Saved to the vault');
+    subscribe();
+    try {
+      const user = await window.claude.use('user');
+      const can = user ? await user.can('data.write') : null;
+      if (can === false) { state.readOnly = true; setSync('cloud', 'View only'); render(); }
+    } catch (e) {}
+  } else {
+    setSync('local', 'Saved on this device only');
+  }
+}
+
+// ---------- scoring ----------
+function allCards() {
+  const custom = Object.entries(state.custom).map(([id, c]) => ({ ...c, id, g: c.g || 'c-' + id, custom: true }));
+  return BASE_CARDS.concat(custom);
+}
+function computeStats(cards) {
+  let distinct = 0, copies = 0, ones = 0, supply = 0, held = 0, pts = 0, value = 0, paid = 0;
+  for (const c of cards) {
+    if (c.run) supply += c.run;
+    const o = state.owned[c.id]; const q = o ? (o.qty || 0) : 0;
+    if (!q) continue;
+    distinct++; copies += q;
+    if (c.run === 1) ones += q;
+    if (c.run) held += Math.min(q, c.run);
+    pts += (c.run ? 100 / c.run : 0.5) * q * (c.kind === 'auto' ? 2 : 1);
+    value += (Number(o.value) || 0) * q; paid += Number(o.paid) || 0;
+  }
+  const completion = cards.length ? distinct / cards.length : 0;
+  const index = Math.round(50 * completion + 50 * (1 - Math.exp(-pts / 60)));
+  return { distinct, copies, ones, supply, held, completion, index, value, paid, total: cards.length };
+}
+const TIERS = [[0, 'Bench Player'], [10, 'September Call-Up'], [25, 'Everyday Starter'], [45, 'All-Star'], [65, 'Baty Baron'], [85, 'Total Market Control']];
+
+// ---------- rendering ----------
+const ERA = { prospect: (y) => y <= 2022, rookie: (y) => y === 2023, recent: (y) => y >= 2024, all: () => true };
+function renderBoard(cards) {
+  const s = computeStats(cards);
+  $('#idx').textContent = s.index;
+  $('#tier').textContent = TIERS.filter(([t]) => s.index >= t).pop()[1];
+  $('#meter').style.width = s.index + '%';
+  $('#sComplete').textContent = Math.round(s.completion * 100) + '%';
+  $('#sCompleteD').textContent = s.distinct + ' of ' + s.total + ' cards';
+  const share = s.supply ? (s.held / s.supply) * 100 : 0;
+  $('#sShare').textContent = (share > 0 && share < 0.1 ? share.toFixed(2) : share.toFixed(1)) + '%';
+  $('#sShareD').textContent = s.held + ' of ' + s.supply.toLocaleString('en-US') + ' numbered copies';
+  $('#sOwned').textContent = s.copies;
+  $('#sOwnedD').textContent = s.ones + (s.ones === 1 ? ' one-of-one' : ' one-of-ones');
+  $('#sValue').textContent = money(s.value);
+  $('#sValueD').textContent = money(s.paid) + ' paid';
+}
+
+function runBadge(c) {
+  if (!c.run) return '';
+  const cls = c.run === 1 ? 'one' : c.run <= 25 ? 'low' : '';
+  return '<span class="run ' + cls + '">' + (c.run === 1 ? '1/1' : '/' + c.run) + (c.est ? '*' : '') + '</span>';
+}
+
+function ebayUrl(c) {
+  const q = ['brett baty', c.year, c.set, c.no.replace('#', '')].join(' ');
+  return 'https://www.ebay.com/sch/i.html?_sacat=261328&_sop=10&_nkw=' + encodeURIComponent(q);
+}
+
+function renderChecklist(cards) {
+  const q = state.q.trim().toLowerCase();
+  const groups = new Map();
+  for (const c of cards) { if (!groups.has(c.g)) groups.set(c.g, []); groups.get(c.g).push(c); }
+  const sorted = [...groups.values()].sort((a, b) => a[0].year - b[0].year || a[0].set.localeCompare(b[0].set));
+  let html = '';
+  for (const list of sorted) {
+    const h = list[0];
+    if (!ERA[state.era](h.year)) continue;
+    const owns = list.filter((c) => (state.owned[c.id]?.qty || 0) > 0).length;
+    let rows = list.filter((c) => {
+      if (state.missing && state.owned[c.id]?.qty) return false;
+      if (!q) return true;
+      return [c.year, c.set, c.no, c.name, c.tag].join(' ').toLowerCase().includes(q);
+    });
+    if (!rows.length) continue;
+    html += '<article class="group"><div class="ghead"><div class="gtitle"><span class="gyear">' + h.year + '</span><span class="gset">' + esc(h.set) + '</span> <span class="gno mono">' + esc(h.no) + '</span>' +
+      (h.tag ? '<span class="tag">' + esc(h.tag) + '</span>' : '') + '</div>' +
+      '<div class="rainbow" title="Versions owned"><span class="rbar">' + list.map((c) => '<i class="' + (state.owned[c.id]?.qty ? 'on' : '') + '"></i>').join('') + '</span>' + owns + '/' + list.length + '</div>' +
+      '<a class="hunt" target="_blank" rel="noopener" href="' + esc(ebayUrl(h)) + '">Find on eBay ↗</a></div><div class="rows">';
+    for (const c of rows) {
+      const o = state.owned[c.id] || {}; const qty = o.qty || 0; const open = state.open.has(c.id);
+      const sub = [o.grade, o.note].filter(Boolean).join(' · ');
+      html += '<div class="row' + (qty ? ' owned' : '') + '" data-id="' + esc(c.id) + '">' +
+        '<div class="pname">' + esc(c.name) + (c.custom ? ' <small>Added by you</small>' : '') + (sub ? '<small>' + esc(sub) + '</small>' : '') +
+        '<button class="more" data-act="detail">' + (open ? 'Hide details' : 'Details') + '</button></div>' +
+        runBadge(c) +
+        '<div class="step"><button data-act="dec" aria-label="Remove one ' + esc(c.name) + '"' + (qty && !state.readOnly ? '' : ' disabled') + '>−</button><output>' + qty + '</output><button data-act="inc" aria-label="Add one ' + esc(c.name) + '"' + (state.readOnly ? ' disabled' : '') + '>+</button></div>';
+      if (open) {
+        const dis = state.readOnly ? ' disabled' : '';
+        html += '<div class="detail">' +
+          '<label>Grade<input data-f="grade" id="g-' + esc(c.id) + '" value="' + esc(o.grade) + '" placeholder="PSA 10"' + dis + '></label>' +
+          '<label>Paid ($)<input data-f="paid" id="p-' + esc(c.id) + '" type="number" min="0" step="0.01" value="' + esc(o.paid) + '"' + dis + '></label>' +
+          '<label>Value each ($)<input data-f="value" id="v-' + esc(c.id) + '" type="number" min="0" step="0.01" value="' + esc(o.value) + '"' + dis + '></label>' +
+          '<label>Note<input data-f="note" id="n-' + esc(c.id) + '" value="' + esc(o.note) + '" placeholder="From the card show"' + dis + '></label></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div></article>';
+  }
+  $('#groups').innerHTML = html ? '<div class="panel" style="padding-top:0">' + html + '</div>' : '<div class="empty">No cards match. Clear the search or switch the era filter.</div>';
+}
+
+function renderDrops() {
+  const list = Object.entries(state.drops).map(([id, d]) => ({ id, ...d }))
+    .sort((a, b) => String(b.foundAt || '').localeCompare(String(a.foundAt || '')));
+  const fresh = list.filter((d) => (d.status || 'new') === 'new').length;
+  $('#newCount').hidden = !fresh; $('#newCount').textContent = fresh;
+  if (!list.length) {
+    $('#drops').innerHTML = '<div class="empty">No drops logged yet. New Brett Baty releases show up here when they are found, marked NEW until you check them off.</div>';
+    return;
+  }
+  $('#drops').innerHTML = '<div class="panel" style="padding-top:0">' + list.map((d) => {
+    const st = d.status || 'new';
+    const found = d.foundAt ? new Date(d.foundAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    let src = '';
+    try { const u = new URL(d.url); if (u.protocol === 'https:') src = '<a class="btn" target="_blank" rel="noopener" href="' + esc(u.href) + '">Source ↗</a>'; } catch (e) {}
+    return '<article class="drop ' + st + '" data-drop="' + esc(d.id) + '"><div class="top"><h4>' + esc(d.title) + '</h4><span class="pill ' + st + '">' + (st === 'added' ? 'On checklist' : st) + '</span></div>' +
+      (d.detail ? '<p>' + esc(d.detail) + '</p>' : '') + '<p class="mono" style="font-size:12px">' + esc(found ? 'Found ' + found : '') + (d.release ? ' · Release ' + esc(d.release) : '') + '</p>' +
+      '<div class="acts">' + src + '<a class="btn" target="_blank" rel="noopener" href="https://www.ebay.com/sch/i.html?_sacat=261328&_sop=10&_nkw=' + encodeURIComponent('brett baty ' + (d.search || d.title)) + '">Search eBay ↗</a>' +
+      (state.readOnly ? '' : (st !== 'added' ? '<button class="btn primary" data-act="toadd">Add to checklist</button>' : '') + (st === 'new' ? '<button class="btn" data-act="seen">Mark seen</button>' : '')) +
+      '</div></article>';
+  }).join('') + '</div>';
+}
+
+function render() {
+  const cards = allCards();
+  renderBoard(cards);
+  // Keep focus and caret while typing in a detail field: only re-render the list when not editing.
+  const a = document.activeElement;
+  if (!(a && a.dataset && a.dataset.f)) renderChecklist(cards);
+  renderDrops();
+  $('#addForm').querySelectorAll('input,select,button').forEach((el) => { el.disabled = state.readOnly; });
+}
+
+// ---------- interactions ----------
+function setView(v) {
+  state.view = v;
+  ['checklist', 'drops', 'add'].forEach((k) => { $('#view-' + k).hidden = k !== v; $('#tab-' + k).setAttribute('aria-selected', String(k === v)); });
+  try { history.replaceState(null, '', '#' + v); } catch (e) {}
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
+
+document.querySelectorAll('.chip[data-era]').forEach((c) => c.addEventListener('click', () => {
+  state.era = c.dataset.era;
+  document.querySelectorAll('.chip[data-era]').forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
+  render();
+}));
+$('#missingOnly').addEventListener('click', (e) => { state.missing = !state.missing; e.currentTarget.setAttribute('aria-pressed', String(state.missing)); render(); });
+$('#q').addEventListener('input', (e) => { state.q = e.target.value; render(); });
+
+$('#groups').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const id = btn.closest('.row').dataset.id; const act = btn.dataset.act;
+  if (act === 'detail') { state.open.has(id) ? state.open.delete(id) : state.open.add(id); render(); return; }
+  if (state.readOnly) return;
+  const o = { ...(state.owned[id] || {}) }; const q = (o.qty || 0) + (act === 'inc' ? 1 : -1);
+  if (q <= 0 && !o.grade && !o.paid && !o.value && !o.note) persist('owned', id, null);
+  else persist('owned', id, { ...o, qty: Math.max(0, q), updatedAt: new Date().toISOString() });
+});
+$('#groups').addEventListener('change', (e) => {
+  const f = e.target.dataset.f; if (!f || state.readOnly) return;
+  const id = e.target.closest('.row').dataset.id;
+  const o = { ...(state.owned[id] || { qty: 0 }) };
+  o[f] = f === 'paid' || f === 'value' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value.trim();
+  o.updatedAt = new Date().toISOString();
+  e.target.blur();
+  persist('owned', id, o, 0);
+});
+
+$('#drops').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]'); if (!btn || state.readOnly) return;
+  const id = btn.closest('.drop').dataset.drop; const d = state.drops[id]; if (!d) return;
+  if (btn.dataset.act === 'seen') { persist('drops', id, { ...d, status: 'seen' }, 0); return; }
+  const p = d.prefill || {};
+  $('#fYear').value = p.year || ''; $('#fSet').value = p.set || d.title || ''; $('#fNo').value = p.no || '';
+  $('#fName').value = p.name || 'Base'; $('#fRun').value = p.run || ''; $('#fKind').value = p.kind || 'base';
+  $('#fRc').checked = !!p.rc; $('#fOwn').checked = false;
+  $('#addForm').dataset.drop = id;
+  setView('add'); $('#fYear').focus();
+});
+
+$('#addForm').addEventListener('submit', (e) => {
+  e.preventDefault(); if (state.readOnly) return;
+  const year = Number($('#fYear').value), set = $('#fSet').value.trim(), name = $('#fName').value.trim();
+  const no = $('#fNo').value.trim(), run = Number($('#fRun').value) || null;
+  if (!year || !set || !name) { toast('Fill in the year, set and version.'); return; }
+  const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const g = 'c-' + year + '-' + slug(set) + '-' + slug(no || 'x');
+  const id = g + '-' + slug(name) + '-' + Date.now().toString(36);
+  persist('cards', id, { g, year, set, no: no || '—', name, run, est: false, kind: $('#fKind').value, tag: $('#fRc').checked ? 'RC' : '', addedAt: new Date().toISOString() }, 0);
+  if ($('#fOwn').checked) persist('owned', id, { qty: 1, updatedAt: new Date().toISOString() }, 0);
+  const dropId = e.target.dataset.drop;
+  if (dropId && state.drops[dropId]) persist('drops', dropId, { ...state.drops[dropId], status: 'added' }, 0);
+  delete e.target.dataset.drop;
+  e.target.reset();
+  toast('Added ' + year + ' ' + set + ' ' + name + ' to the checklist');
+  setView('checklist');
+});
+
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
+
+const startView = (location.hash || '').slice(1);
+setView(['checklist', 'drops', 'add'].includes(startView) ? startView : 'checklist');
+boot();
+</script>
